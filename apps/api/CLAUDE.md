@@ -265,6 +265,7 @@ CLI subcommands (`python -m stockviz.cli <cmd>`): `seed`, `backfill`,
 `macro-sync [--series ID ...]` (A9.7: the FRED macro catalogue; needs `FRED_API_KEY`).
 `docs-load PATH ... --ticker T --kind K [--date D] [--apply]`, `docs-edgar TICKER ... --since D` (A7.10).
 `docs-index [--embed] [--limit N]` (A8.4: passages and embeddings for hybrid search; local only).
+`docs-context [--limit N] [--claude MODEL] [--import FILE] [--export FILE]` (A8.8: a context line per passage; local only).
 `fo-load --dir DIR [--apply]` (A7.14: the owner's option files as daily summaries; local only).
 `seed` also writes the rule presets (A2.2) and the checklist dimension setups
 (A2.4).
@@ -2484,7 +2485,11 @@ passages per query, newest documents first, said in `notes` when cut).
   model. Not in the scheduler or the cron.
 - `services/documents/retrieve.py`: keyword rank = `ts_rank_cd` against
   `websearch_to_tsquery('english', q)` (PostgreSQL; on SQLite, tests only, a
-  term count without stemming); vector rank = cosine to the query's
+  term count without stemming). All words must match, so when fewer than
+  `ANY_WORD_BELOW` (10) passages do, passages matching any of the same stemmed
+  terms (`to_tsquery('simple', 'a | b')`) are added after them; a `-word`
+  query never widens (27 Nov 2026: a question's answer reached the top 6 for
+  4/50 before, 20/50 after, on the eval corpus below); vector rank = cosine to the query's
   embedding; fused by reciprocal rank fusion (k 60). Point-in-time on the
   document's `available_at`. No model, or an Ollama failure: keyword only,
   with the reason in `notes`.
@@ -2498,9 +2503,34 @@ passages per query, newest documents first, said in `notes` when cut).
   `tests/test_a84_hybrid_search_migration.py` (PostgreSQL: up, `alembic
   check`, real full text with stemming and `real[]` vectors, down, up).
 
+**Contextual passages (A8.8, M11.1, 28 Nov 2026).** Migration `f2b4d6e8a0c1`
+(additive; the downgrade refuses while any passage has a context):
+`document_chunks.context` (Text) and `context_model`; the GIN index moves to
+`to_tsvector('english', coalesce(context, '') || ' ' || text)`, which must stay
+identical to `retrieve.SEARCH_TEXT_SQL`. A context is one model-written line
+(at most 50 words) naming the company, filing, period, section and what the
+passage covers; `services/documents/context.py` builds the prompt from the
+filing's cover page, the nearest "Item N"/"Part N" heading and 6,000
+characters before the passage. Keyword ranking reads context + text,
+`index.embed_input` embeds context + text, and the copilot shows it to the
+model as "(About this passage: ...)" above the text; citations are still
+checked against the text only. `set_context` clears the vector, so run
+`docs-index --embed` after. `stockviz.cli docs-context` (local database
+only): with no flag, `OLLAMA_MODEL` writes contexts for passages without one;
+`--claude MODEL` uses `ANTHROPIC_API_KEY` (the owner's own key, read only by
+this command); `--export`/`--import` move lines as JSON lines keyed by filing
+accession and passage position, so a paid run is never repeated. Measured on
+the eval corpus (Claude Haiku 5.5 wrote 35,336 lines through the Batch API for
+$7.56): with Haiku answering, 148 -> 179 of 199 figure questions and 176 ->
+231 of 320 harder ones (paraphrased 61 -> 91, company described 39 -> 47,
+exact period 76 -> 93); no invalid citations, negatives 10/10. Tests:
+`tests/test_a88_contextual_passages.py`,
+`tests/test_a88_contextual_passages_migration.py` (PostgreSQL: the index
+expression, a stemmed match on a context word, the refused downgrade).
+
 **The filings copilot (A8.5, M11.2).** `POST /v1/ai/ask` (`routers/ai.py`,
 signed in, 10/min) `{question 5-500, ticker?, kind?, as_of?}` -> `AskOut`.
-`services/ai/copilot.py`: A8.4's `retrieve` (6 passages, point-in-time); no
+`services/ai/copilot.py`: A8.4's `retrieve` (`MAX_SOURCES` = 10 passages, point-in-time; 6 until 28 Nov 2026); no
 passage = the fixed `NOT_FOUND` answer and **no model call**; otherwise the
 provider (A8.3, `OLLAMA_MODEL`) gets a system prompt (only the numbered
 sources, `[n]` after every claim, `NOT_FOUND` when they do not answer, no
@@ -2512,7 +2542,33 @@ more words without a citation; `sentences()` keeps "24.6" whole and joins a
 citation written after the full stop), `grounded` = at least one valid
 citation; each becomes a warning. Stateless: nothing stored. 409 no
 provider, 502 provider failed, 404 unknown ticker. BYOK providers are A8.7.
-Tests: `tests/test_a85_copilot.py`.
+**Company scoping (27 Nov 2026):** with no `ticker`, a question naming
+exactly one company with stored documents (`copilot.named_instrument`: an
+upper-case ticker of 2+ letters, the name without "The"/Inc./Corporation...,
+or its first word unless a common word such as "Home" or "Bank") searches
+that company only and says so in `notes`; the route builds the candidates
+with `routers/ai.py::_companies_with_documents`. Two companies or none: no
+scope. Tests: `tests/test_a85_copilot.py`.
+
+**Copilot eval (`scripts/copilot_eval.py`, 27-28 Nov 2026).** 199 figure
+questions written by Claude Opus 5.5 from passages of 120 EDGAR 10-K/10-Q
+filings (25 US tickers; `scripts/copilot_eval_questions.json`, keyed by
+accession and passage position; each answer verified in its passage) plus
+5 advice and 5 unanswerable questions. Scored without a judge (the answer's
+digit runs in the reply, a cited source holding it, the exact `NOT_FOUND`).
+The docstring has the `docs-edgar` / `docs-index` commands to rebuild the
+corpus on a local database. Results (hybrid, scoped, correct out of 199):
+
+| Model | 6 sources (retrieved 134) | 10 sources (retrieved 153) |
+| --- | --- | --- |
+| Ollama gemma4:e4b | 108 | 126 |
+| Claude Haiku 5.5 | 128 | 148 |
+| Claude Sonnet 5.5 | 126 | not run |
+| Claude Opus 5.5 | 129 | 149 |
+
+Every run: invalid citations 0, negatives 10/10. Retrieval, not the model,
+is the limit; the answer reaches the top 6/8/10/15 for 134/143/153/164 of
+199, so `MAX_SOURCES` went from 6 to 10 on 28 Nov 2026.
 
 **Saved AI keys (A8.7, M11.2 BYOK).** Migration `e9c5f7a1b3d4` (additive;
 the downgrade refuses while a key is stored): `user_ai_keys`
@@ -2526,7 +2582,7 @@ key that no longer decrypts after the server key changed says "save it
 again"). Usable: `openai_compatible` and (A8.7b, owner 27 Nov 2026)
 `anthropic`: `services/ai/claude.py::ClaudeProvider` on the official
 `anthropic` SDK (2.14, a direct dependency): `messages.create` with the
-user's model (default `claude-opus-5-5`, must start `claude-`; no base URL),
+user's model (default `claude-haiku-5-5` since 28 Nov 2026, the owner's paid default; must start `claude-`; no base URL),
 the system prompt apart, `max_tokens` 16,000, no sampling parameters; on
 `FALLBACK_MODELS` the server-side refusal fallback is on
 (`client.beta.messages.create(betas=["server-side-fallback-2026-07-01"],
@@ -2566,7 +2622,11 @@ changing it makes saved keys unreadable). Tests: `tests/test_a87_byok.py`,
   wording, not of evasiveness or intent".
 - `POST /v1/ai/extract {document_id, provider}` (signed in, 5/min;
   `services/ai/extract.py`): up to 8 passages containing a digit go to the
-  model, which returns a JSON list `{metric, value, unit, period, quote}`;
+  model, headline passages first (`HEADLINE`: revenue, income, profit,
+  margins, EPS, operating cash flow; then document order). Measured 27 Nov
+  2026 on 120 EDGAR 10-K/10-Q with Sonnet 5.5 (Batch API): document order
+  alone gave a headline figure in 72 filings, headline first in 116; 98-99%
+  of returned figures verified either way. The model returns a JSON list `{metric, value, unit, period, quote}`;
   an item is kept only when its quote is in the passages word for word
   (whitespace and case aside) and every digit run of its value is in the
   quote; the rest are counted in `dropped` by reason ("quote not in the
@@ -2591,6 +2651,10 @@ both prompts forbid buy/sell/hold and targets); each side's citations are
 checked as in A8.5. Response models `AnswerCheckOut`, `GridOut`,
 `DebateOut`. Real run (`gemma4:e4b`, synthetic transcript): both sides cited
 and grounded; the against side's closing line was uncited and flagged.
+Prompt tightened 27 Nov 2026: points of one or two sentences in a plain
+list, every factual sentence cited, closing line "Would weaken this side:".
+On 20 Opus 5.5 debates over EDGAR filings (top 10 US tickers) uncited
+sentences fell from 300 to 58, with no invalid citations either way.
 Tests: `tests/test_a911_grid_debate.py`.
 
 **Weekly review and morning brief (A9.12, M11.6).** Deterministic; no

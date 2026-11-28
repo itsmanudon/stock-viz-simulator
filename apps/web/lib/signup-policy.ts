@@ -42,3 +42,61 @@ export function signupAllowed(args: {
 
 export const SIGNUP_CLOSED_MESSAGE =
   "StockViz is invite only for now, so new accounts cannot be created. Existing accounts can still sign in.";
+
+/**
+ * Marketing buttons while new accounts are not open to everyone (owner, 28 Nov
+ * 2026, before sharing the site for review): a link to `/signup` would land a
+ * visitor on the "invite only" message, so it becomes a public page instead.
+ * When both buttons of a pair would then point to the same page, the second
+ * goes to the docs.
+ */
+export type CtaLink = { href: string; label: string };
+
+export const CLOSED_CTA: CtaLink = { href: "/markets", label: "Explore markets" };
+export const CLOSED_CTA_ALT: CtaLink = { href: "/docs", label: "Read the docs" };
+
+function isSignupLink(link: CtaLink): boolean {
+  return link.href.split("?")[0] === "/signup";
+}
+
+export function ctaPair(
+  mode: SignupMode,
+  primary: CtaLink,
+  secondary: CtaLink,
+): [CtaLink, CtaLink] {
+  if (mode === "open") return [primary, secondary];
+  const first = isSignupLink(primary) ? CLOSED_CTA : primary;
+  let second = isSignupLink(secondary) ? CLOSED_CTA : secondary;
+  if (second.href === first.href) {
+    second = first.href === CLOSED_CTA_ALT.href ? CLOSED_CTA : CLOSED_CTA_ALT;
+  }
+  return [first, second];
+}
+
+/**
+ * Invite requests while sign-up is closed (owner, 28 Nov 2026): the `/signup`
+ * page shows a short form that opens the visitor's mail app with a request
+ * addressed to the owner. No mail service or stored data is involved.
+ */
+export const INVITE_EMAIL = "mananjariwala01@outlook.com";
+
+export type InviteRequest = { name: string; email: string; note: string };
+
+const MAX_NOTE = 1_000;
+
+export function inviteMailto(request: InviteRequest): string {
+  const name = request.name.trim();
+  const email = request.email.trim();
+  const note = request.note.trim().slice(0, MAX_NOTE);
+  const lines = [
+    "Hi Manan,",
+    "",
+    "I would like an invite to StockViz.",
+    "",
+    `Name: ${name || "-"}`,
+    `Email: ${email || "-"}`,
+  ];
+  if (note) lines.push("", "What I would try first:", note);
+  const subject = name ? `StockViz invite request from ${name}` : "StockViz invite request";
+  return `mailto:${INVITE_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+}

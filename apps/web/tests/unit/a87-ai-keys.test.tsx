@@ -27,7 +27,7 @@ describe("AI keys panel", () => {
     expect(openai.getByLabelText("Endpoint Base URL")).toBeInTheDocument();
     const claude = within(screen.getByTestId("ai-key-anthropic"));
     expect(claude.queryByLabelText("Endpoint Base URL")).toBeNull();
-    expect(claude.getByLabelText("Model")).toHaveValue("claude-opus-5-5");
+    expect(claude.getByLabelText("Model")).toHaveValue("claude-haiku-5-5");
     expect(claude.getByLabelText("Key")).toHaveValue("");
   });
 

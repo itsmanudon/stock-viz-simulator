@@ -41,7 +41,7 @@ function GoogleIcon() {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ signupOpen = true }: { signupOpen?: boolean }) {
   const [state, action, pending] = useActionState(loginAction, {});
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
@@ -106,12 +106,18 @@ export function LoginForm() {
             <GoogleIcon />
             Continue with Google
           </Button>
-          <p className="text-center text-sm text-text-secondary">
-            No account?{" "}
-            <Link href={signupHref} className="text-foreground underline">
-              Sign up
-            </Link>
-          </p>
+          {signupOpen ? (
+            <p className="text-center text-sm text-text-secondary">
+              No account?{" "}
+              <Link href={signupHref} className="text-foreground underline">
+                Sign up
+              </Link>
+            </p>
+          ) : (
+            <p className="text-center text-sm text-text-secondary">
+              StockViz is invite only for now.
+            </p>
+          )}
         </CardFooter>
       </form>
     </Card>

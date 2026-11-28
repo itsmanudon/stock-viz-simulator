@@ -13,6 +13,10 @@ expression index in the migration); ``embedding`` is the passage's vector from
 ``embed_model`` (null until ``docs-index --embed`` runs), stored as ``real[]``
 and compared in Python, because pgvector is not on every host yet (JSON on
 SQLite, the test database).
+
+``context`` (A8.8): a model-written line situating the passage (company,
+filing, period, section), searched and embedded together with ``text``; the
+full-text index is on ``coalesce(context, '') || ' ' || text``.
 """
 
 from __future__ import annotations
@@ -82,3 +86,8 @@ class DocumentChunk(SQLModel, table=True):
         sa_column=Column(ARRAY(REAL()).with_variant(JSON(), "sqlite"), nullable=True),
     )
     embed_model: str | None = Field(default=None, max_length=64)
+    # A8.8 (28 Nov 2026): one line situating the passage in its filing (company,
+    # filing, period, section, what it covers), written by a model; searched and
+    # embedded with the text, never shown as the filing's own words.
+    context: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    context_model: str | None = Field(default=None, max_length=64)

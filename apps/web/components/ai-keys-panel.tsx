@@ -23,7 +23,7 @@ import type { AiKey, AiKeys } from "@/lib/api/ai";
 
 const PROVIDERS = [
   { id: "openai_compatible", title: "OpenAI-Compatible Endpoint", endpoint: true, model: "" },
-  { id: "anthropic", title: "Claude (Anthropic)", endpoint: false, model: "claude-opus-5-5" },
+  { id: "anthropic", title: "Claude (Anthropic)", endpoint: false, model: "claude-haiku-5-5" },
 ] as const;
 
 function KeyForm({

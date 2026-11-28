@@ -12,7 +12,12 @@ from pydantic import SecretStr
 from sqlmodel import Session
 
 from stockviz.services.ai import keys
-from stockviz.services.ai.claude import DEFAULT_MODEL, FALLBACK_BETA, ClaudeProvider
+from stockviz.services.ai.claude import (
+    DEFAULT_MODEL,
+    FALLBACK_BETA,
+    FALLBACK_MODELS,
+    ClaudeProvider,
+)
 from stockviz.services.ai.provider import AiProviderError, Message
 from tests.test_drills import _user
 
@@ -54,12 +59,12 @@ def _provider(model: str, messages: FakeMessages, beta: FakeMessages | None = No
 
 def test_request_shape_and_fallback() -> None:
     plain, beta = FakeMessages(_reply()), FakeMessages(_reply("Fallback on [2]."))
-    p, seen = _provider(DEFAULT_MODEL, plain, beta)
+    p, seen = _provider("claude-opus-5-5", plain, beta)
     out = p.complete([Message("system", "Only the sources."), Message("user", "Q?")])
     assert out == "Fallback on [2]." and seen == [SECRET] and plain.calls == []
     call = beta.calls[0]
     assert call["betas"] == [FALLBACK_BETA] and call["fallbacks"] == "default"
-    assert call["system"] == "Only the sources." and call["model"] == DEFAULT_MODEL
+    assert call["system"] == "Only the sources." and call["model"] == "claude-opus-5-5"
     assert call["messages"] == [{"role": "user", "content": "Q?"}]
     assert "temperature" not in call and call["max_tokens"] > 1000
     other = FakeMessages(_reply())
@@ -67,6 +72,10 @@ def test_request_shape_and_fallback() -> None:
     assert p2.complete([Message("user", "Q?")]) == "Answer [1]."
     assert "betas" not in other.calls[0] and "system" not in other.calls[0]
     assert SECRET not in repr(p)
+
+
+def test_default_model_is_haiku() -> None:
+    assert DEFAULT_MODEL == "claude-haiku-5-5" and DEFAULT_MODEL not in FALLBACK_MODELS
 
 
 def _status_error(cls, status: int):

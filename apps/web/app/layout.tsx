@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Geist, Instrument_Serif } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import "./globals.css";
@@ -7,23 +7,16 @@ import "./globals.css";
 /**
  * Geist carries all interface, heading, and marketing copy, and every ticker
  * symbol (the `ticker` utility in globals.css). Product titles are weight 600
- * with tight tracking; marketing headlines stay at 500. Geist Mono handles
- * prices, quantities, table values and deltas: it has tabular figures and its
- * own ₹, and globals.css turns on the slashed zero.
+ * with tight tracking; marketing headlines stay at 500. Prices, quantities,
+ * table values and deltas use Geist too, with tabular figures (`font-mono`
+ * maps to Geist since 28 Nov 2026: one typeface across the site).
  *
- * Both are self-hosted by next/font, so there is no runtime request to Google.
+ * Both fonts are self-hosted by next/font, so there is no runtime request to Google.
  */
 const display = Geist({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-display",
-});
-
-const mono = Geist_Mono({
-  weight: ["400", "500", "600", "700"],
-  subsets: ["latin", "latin-ext"],
-  display: "swap",
-  variable: "--font-numeric",
 });
 
 /**
@@ -73,7 +66,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${display.variable} ${mono.variable} ${editorial.variable}`}
+      className={`${display.variable} ${editorial.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
         <Providers>

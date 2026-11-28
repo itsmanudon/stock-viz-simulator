@@ -10,7 +10,7 @@
  * there is no News page yet.
  */
 
-import { ArrowRight, Play, Rewind, StepForward } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -25,7 +25,10 @@ import {
 } from "@/components/marketing/landing-sections";
 import { PhoneFrame } from "@/components/marketing/phone-frame";
 import { ProofSection } from "@/components/marketing/proofs/proof-section";
+import { ReplayPlayer } from "@/components/marketing/replay-player";
 import { Button } from "@/components/ui/button";
+import { signupMode } from "@/lib/signup-gate";
+import { ctaPair } from "@/lib/signup-policy";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
 type LinkSpec = { href: string; label: string };
@@ -133,72 +136,15 @@ export function findProductPage(slug: string): ProductPageSpec | undefined {
   return PRODUCT_PAGES.find((page) => page.slug === slug);
 }
 
-/** A replay player drawn from real stored bars, with the future hidden. */
+/** A working replay player over real stored bars, the future hidden (`ReplayPlayer`). */
 async function ReplayArt() {
   const data = await loadPanel();
   if (!data || data.bars.length < 6) return null;
-  const bars = data.bars.slice(-60);
-  const step = Math.max(2, Math.floor(bars.length * 0.6));
-  const visible = bars.slice(0, step).map((bar) => Number(bar.close));
-  const min = Math.min(...visible);
-  const max = Math.max(...visible);
-  const span = max - min || 1;
-  const width = 340;
-  const height = 150;
-  // Visible bars fill the left 62%; the rest of the axis is the hidden future.
-  const plotWidth = width * 0.62;
-  const points = visible
-    .map((close, index) => {
-      const x = 4 + (index / (visible.length - 1)) * (plotWidth - 8);
-      const y = 10 + (1 - (close - min) / span) * (height - 20);
-      return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <div
-      aria-hidden
-      className="dark grid w-full max-w-sm gap-3 rounded-3xl border border-border bg-card p-4 text-foreground shadow-2xl shadow-black/30"
-    >
-      <div className="flex justify-between gap-3 text-xs">
-        <span className="ticker">{data.ticker} · Replay</span>
-        <span className="font-mono text-text-tertiary">
-          Bar {step} of {bars.length} · {formatCloseDate(bars[step - 1]?.ts)}
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-40 w-full" aria-hidden="true">
-        <path d={points} fill="none" stroke="currentColor" strokeWidth="1.8" />
-        <line
-          x1={plotWidth}
-          x2={plotWidth}
-          y1="6"
-          y2={height - 6}
-          stroke="var(--border)"
-          strokeDasharray="3 4"
-        />
-        <text x={plotWidth + 14} y={height / 2} fill="var(--text-tertiary)" fontSize="11">
-          Future hidden
-        </text>
-      </svg>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex gap-2">
-          <span className="grid size-9 place-items-center rounded-full border border-border-muted">
-            <Rewind className="size-4" />
-          </span>
-          <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground">
-            <Play className="size-4" />
-          </span>
-          <span className="grid size-9 place-items-center rounded-full border border-border-muted">
-            <StepForward className="size-4" />
-          </span>
-        </div>
-        <div className="flex gap-2 text-xs font-medium">
-          <span className="rounded-full border border-border-muted px-3.5 py-2">Sell</span>
-          <span className="rounded-full bg-primary px-3.5 py-2 text-primary-foreground">Buy</span>
-        </div>
-      </div>
-    </div>
-  );
+  const bars = data.bars.slice(-60).map((bar) => ({
+    close: Number(bar.close),
+    date: formatCloseDate(bar.ts),
+  }));
+  return <ReplayPlayer ticker={data.ticker} bars={bars} />;
 }
 
 async function PhoneArt({ screen }: { screen: PhoneScreenKey }) {
@@ -212,9 +158,13 @@ async function PhoneArt({ screen }: { screen: PhoneScreenKey }) {
 }
 
 export function ProductPage({ spec }: { spec: ProductPageSpec }) {
+  // The signup switch: while closed, a "/signup" button points at a public page.
+  const [primary, secondary] = ctaPair(signupMode(), spec.primary, spec.secondary);
   return (
     <>
-      <section className="relative isolate overflow-hidden">
+      {/* Clip sideways only: the glow has to fade out under the transparent
+          header, not stop in a straight line below it. */}
+      <section className="relative isolate overflow-x-clip">
         <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:pb-24">
           <div
             aria-hidden
@@ -232,13 +182,13 @@ export function ProductPage({ spec }: { spec: ProductPageSpec }) {
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="rounded-full px-6">
-                <Link href={spec.primary.href} className="gap-2">
-                  {spec.primary.label}
+                <Link href={primary.href} className="gap-2">
+                  {primary.label}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
-                <Link href={spec.secondary.href}>{spec.secondary.label}</Link>
+                <Link href={secondary.href}>{secondary.label}</Link>
               </Button>
             </div>
           </div>

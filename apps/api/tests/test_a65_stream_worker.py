@@ -490,3 +490,50 @@ class _FrozenSunday(datetime):
     @classmethod
     def now(cls, tz=None):  # type: ignore[override]
         return datetime(2026, 11, 29, 16, 0, tzinfo=UTC)  # a Sunday
+
+
+def test_a_stop_request_closes_a_live_stream_cleanly(session: Session, engine) -> None:
+    """A6.6 live check: ``kill <pid>`` ends a live run as ``closed``, not ``error``."""
+    from stockviz.services.stream.worker import live_spec
+
+    seed_symbols(session, "AAPL", currency="USD")
+    t0 = datetime(2026, 1, 6, 15, 0, tzinfo=UTC)
+    clock = {"now": t0 + timedelta(seconds=30)}
+    worker = StreamWorker(live_spec(), ["AAPL"], session_factory=lambda: Session(engine),
+                          clock=lambda: clock["now"], deliver=False, publish=Published(),
+                          stop_at=t0 + timedelta(hours=6))  # fmt: skip
+
+    async def live():
+        yield Tick(symbol="AAPL", ts=t0 + timedelta(seconds=5), price=Decimal(5), size=3,
+                   feed="iex")  # fmt: skip
+        worker.request_stop()  # what the SIGTERM handler does
+        await asyncio.sleep(60)  # a live feed never ends: the request must end the run
+
+    report = asyncio.run(asyncio.wait_for(worker.run(live()), timeout=10))
+    assert report.bars_written == 1  # the open minute was flushed
+    session.expire_all()
+    row = session.get(FeedStream, "alpaca")
+    assert row is not None and row.state == "closed" and row.error is None
+
+
+def test_live_cli_stops_cleanly_on_sigterm() -> None:
+    import os
+    import signal
+
+    class Worker:
+        stopped = False
+
+        def request_stop(self) -> None:
+            self.stopped = True
+
+        async def run(self, _events):
+            os.kill(os.getpid(), signal.SIGTERM)
+            for _ in range(50):
+                if self.stopped:
+                    return "report"
+                await asyncio.sleep(0.01)
+            raise AssertionError("SIGTERM did not reach request_stop")
+
+    worker = Worker()
+    assert asyncio.run(stream_cli._until_signalled(worker, None)) == "report"  # type: ignore[arg-type]
+    assert worker.stopped

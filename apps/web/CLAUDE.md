@@ -67,7 +67,15 @@ components/
                    behind `/product/[slug]` — paper-trading, research,
                    replay; facts are checked against shipped behaviour, and
                    there is no news page until Aegis lands; the public header
-                   links these three). `market-ticker`, `product-tour`/`tour-*` and
+                   links these three). `replay-player.tsx` (client: the
+                   Replay page's working player over real stored bars: play,
+                   pause, step, rewind, and a paper buy/sell kept in memory;
+                   the scale comes from the bars seen only).
+                   `workspace-stops.tsx` (client: "Everything in the
+                   workspace" on the home page, six pins on ridge lines that
+                   flow like waves, one panel for the stop in view; the loop
+                   runs only on screen, still under reduced motion).
+                   `market-ticker`, `product-tour`/`tour-*` and
                    `by-the-numbers` are no longer on the home page (kept for
                    now, unused),
                    `market-ticker.tsx` (the `.marquee` price strip — halves are
@@ -143,7 +151,9 @@ components/
   order-side-toggle.tsx  buy/sell segmented control shared by both tickets
   ui/              shadcn-generated primitives — don't hand-edit
   site-footer.tsx  public footer: rides `.panel-inset` squared off, so the page
-                   ends dark; disclosures are numbered notes, not buried prose.
+                   ends dark; disclosures are three statements (a large lead word over
+                   its sentence, no numbers). Footer text is `text-sm` or
+                   larger (28 Nov 2026).
                    Liquid Chrome (26 Nov 2026): it opens on the close line and
                    ends on `prism/chrome-wordmark.tsx` (the wordmark filled with
                    the hero's liquid metal through a text mask; the outline is
@@ -333,13 +343,18 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
   popovers, sheets); `--card` is for content tiles sitting on the page.
-- **Type** (owner's pick, 12 Nov 2026): Geist for all text, including every
-  ticker symbol (the `ticker` utility in globals.css, paired with
-  `font-semibold`); Geist Mono only for figures (prices, quantities, deltas)
-  so columns line up. Product page titles are Geist 600 with
+  Marketing buttons follow it too (28 Nov 2026): `ctaPair` in
+  `lib/signup-policy.ts` swaps any `/signup` button for `/markets` (or `/docs`
+  when the pair would repeat) unless the mode is `open`; the footer drops
+  "Create account", and the login and sign-in-required pages drop their
+  "Sign up" line while `closed`.
+- **Type** (owner, 28 Nov 2026: one typeface across the site): Geist for
+  everything, including every ticker symbol (the `ticker` utility in
+  globals.css, paired with `font-semibold`) and every figure. `font-mono`
+  maps to Geist with tabular figures so columns line up; there is no slashed
+  zero and no mono font is loaded. Product page titles are Geist 600 with
   `tracking-[-0.025em]`, like the stock page's company name; marketing
-  headlines stay 500. Geist Mono draws its own ₹ (its `latin-ext` subset is
-  loaded), so there is no ₹ fallback face any more.
+  headlines stay 500. There is no separate ₹ fallback face.
 - **PRISM layer (Nov 2026 redesign)** sits on top of the Aurora rules below,
   which still hold (brand is identity/focus/selection only, gain and loss keep
   their own hues). The palette is **Liquid Chrome** (owner's pick, 25 Nov
@@ -1017,7 +1032,7 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   `(authed)/settings/ai-key-actions.ts`, `listAiKeys`/`saveAiKey`/
   `deleteAiKey` in `lib/api/ai-server.ts`): one form per provider
   (`ai-key-openai_compatible`: base URL, model, key; `ai-key-anthropic`
-  (A8.7b): model, default `claude-opus-5-5`, and key, no endpoint); the key
+  (A8.7b): model, default `claude-haiku-5-5` (owner, 28 Nov 2026), and key, no endpoint); the key
   is a password field, empty on every render; a saved key shows model,
   endpoint and "Key Ending WXYZ" only (`ai-key-saved`), Remove Key;
   `ai-keys-off` when the server has no encryption key. `lib/ai-choices.ts::

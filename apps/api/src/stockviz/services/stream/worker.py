@@ -152,6 +152,8 @@ class StreamWorker:
         self.judge_from = _naive(judge_from) if judge_from is not None else None
         # A6.6: a live stream stops here (the session's close plus a grace).
         self.stop_at = stop_at
+        # Set by :meth:`request_stop` (the live CLI's SIGTERM/SIGINT handler).
+        self._stop_requested = False
 
     # --- lifecycle ------------------------------------------------------------
 
@@ -206,7 +208,17 @@ class StreamWorker:
         self._finish("closed", None)
         return self.report
 
+    def request_stop(self) -> None:
+        """Stop at the next tick or wait (within ``WAIT_SECONDS``), as at the close.
+
+        Open bars are flushed and the stream's row ends ``closed``, so a
+        ``kill`` of the worker's PID is a clean stop, not an ``error``.
+        """
+        self._stop_requested = True
+
     def _past_stop(self) -> bool:
+        if self._stop_requested:
+            return True
         return self.stop_at is not None and self.clock() >= self.stop_at
 
     def _close_due(self) -> None:

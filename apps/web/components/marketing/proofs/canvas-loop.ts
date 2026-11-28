@@ -124,7 +124,8 @@ export function withAlpha(color: string, alpha: number): string {
     .padStart(2, "0")}`;
 }
 
-export const MONO_FONT = '"Geist Mono", ui-monospace, Menlo, monospace';
+/** Canvas labels use the site's one typeface (28 Nov 2026), not a mono face. */
+export const MONO_FONT = 'Geist, "Geist Fallback", Inter, ui-sans-serif, system-ui, sans-serif';
 
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 /** Progress of `t` through the span `a`..`b`, clamped to 0..1. */

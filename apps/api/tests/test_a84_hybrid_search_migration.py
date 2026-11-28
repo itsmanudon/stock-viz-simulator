@@ -68,6 +68,13 @@ def test_a84_migration_and_full_text_ranking(monkeypatch) -> None:
                 got = retrieve.retrieve(session, "borrowing repaid", as_of=when)
                 assert [p.document.title for p in got.passages] == ["Q2"]  # stemmed
                 assert retrieve.retrieve(session, '"sales grew" -headcount', as_of=when).passages
+                # A plain-words question: not every word is in one passage, so any-word
+                # matches are added (all-words matches would come first).
+                asked = retrieve.retrieve(session, "when was borrowing repaid by tcs", as_of=when)
+                assert [p.document.title for p in asked.passages] == ["Q2"]
+                widened = retrieve.retrieve(session, "attrition and borrowing", as_of=when)
+                assert {p.document.title for p in widened.passages} == {"Q2", "Q3"}
+                assert retrieve.retrieve(session, "attrition -headcount", as_of=when).passages == []
                 assert (
                     retrieve.retrieve(session, "borrowing", as_of=datetime(2026, 1, 1)).passages
                     == []
