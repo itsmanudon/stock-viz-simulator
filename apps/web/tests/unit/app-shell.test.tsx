@@ -184,8 +184,8 @@ describe("PublicHeader", () => {
     expect(within(nav).getAllByRole("link")).toHaveLength(4);
     expect(within(nav).getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/docs");
     expect(screen.queryByRole("link", { name: "Orders" })).not.toBeInTheDocument();
-    // The signup switch: unset means closed, so signed-out visitors get "Sign in".
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+    // The signup switch: unset means closed, so signed-out visitors get the invite form.
+    expect(screen.getByRole("link", { name: "Request invite" })).toHaveAttribute("href", "/signup");
   });
 
   it("offers Create account when sign-up is open", async () => {
