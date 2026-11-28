@@ -28,7 +28,7 @@ function Links() {
       </Link>
       {DOC_SECTIONS.map((section) => (
         <div key={section.title}>
-          <p className="text-2xs font-medium tracking-[0.02em] text-text-tertiary">
+          <p className="text-sm font-medium tracking-[0.02em] text-text-tertiary">
             {titleCase(section.title)}
           </p>
           <ul className="mt-2 space-y-1.5">

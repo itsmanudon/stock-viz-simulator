@@ -95,9 +95,7 @@ export function SiteFooter() {
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {COLUMNS.map((column) => (
               <nav key={column.heading} aria-label={column.heading}>
-                <h2 className="font-mono text-2xs font-semibold tracking-[0.02em] text-text-tertiary">
-                  {titleCase(column.heading)}
-                </h2>
+                <h2 className="text-sm font-medium text-foreground">{titleCase(column.heading)}</h2>
                 <ul className="mt-3 space-y-2">
                   {column.links.map((link) =>
                     link.external ? (
@@ -131,16 +129,16 @@ export function SiteFooter() {
         <ol className="mt-14 grid gap-x-10 gap-y-4 border-t border-border-muted pt-8 sm:grid-cols-3">
           {DISCLOSURES.map((note, index) => (
             <li key={note} className="flex gap-2.5">
-              <span aria-hidden className="font-mono text-2xs text-brand tabular-nums">
+              <span aria-hidden className="text-sm text-brand tabular-nums">
                 {index + 1}
               </span>
-              <p className="text-2xs leading-5 text-text-tertiary">{note}</p>
+              <p className="text-sm leading-6 text-text-secondary">{note}</p>
             </li>
           ))}
         </ol>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border-muted pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-mono text-2xs text-text-tertiary">
+          <p className="text-sm text-text-tertiary tabular-nums">
             © {new Date().getFullYear()} StockViz · v{rootPackage.version}
           </p>
           <Suspense fallback={null}>

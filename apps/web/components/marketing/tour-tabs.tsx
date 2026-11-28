@@ -84,9 +84,7 @@ export function TourTabs({ tabs }: { tabs: TourTab[] }) {
                     : "text-text-tertiary hover:text-text-secondary"
                 }`}
               >
-                <span className="font-mono text-3xs tabular-nums">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
+                <span className="text-xs tabular-nums">{String(index + 1).padStart(2, "0")}</span>
                 <span className="text-sm font-medium">{tab.label}</span>
               </button>
               {index < tabs.length - 1 ? (

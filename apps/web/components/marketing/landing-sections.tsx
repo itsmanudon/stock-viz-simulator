@@ -7,7 +7,7 @@
  * `data-motion` markers; every section is complete without it.
  */
 
-import { ArrowRight, CalendarClock, ListChecks, ScrollText, Sparkles, Trophy } from "lucide-react";
+import { ArrowRight, CalendarClock, ListChecks, ScrollText, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -168,12 +168,12 @@ export function SessionTiles() {
       body: "Filter the tracked universe down to the handful worth a look.",
       art: (
         <div className="grid w-full gap-1.5">
-          <div className="flex justify-center gap-1.5 font-mono text-3xs">
-            <span className="rounded-full bg-primary px-2 py-0.5 text-primary-foreground">
+          <div className="flex flex-wrap justify-center gap-1.5 text-sm tabular-nums">
+            <span className="rounded-full bg-primary px-2.5 py-0.5 text-primary-foreground">
               RSI &lt; 30
             </span>
-            <span className="rounded-full border border-border-muted px-2 py-0.5">Volume ↑</span>
-            <span className="rounded-full border border-border-muted px-2 py-0.5">NSE</span>
+            <span className="rounded-full border border-border-muted px-2.5 py-0.5">Volume ↑</span>
+            <span className="rounded-full border border-border-muted px-2.5 py-0.5">NSE</span>
           </div>
           {[92, 74, 60, 84, 68].map((width, index) => (
             <span
@@ -195,16 +195,16 @@ export function SessionTiles() {
       title: "Simulate.",
       body: "Every order opens a review first: price, its date, cost and the fill rule.",
       art: (
-        <div className="landing-slide-up grid w-[85%] gap-1.5 rounded-t-2xl border border-b-0 border-border bg-surface-secondary p-3 text-left">
-          <span className="text-3xs tracking-[0.02em] text-text-tertiary">Review Order</span>
+        <div className="landing-slide-up grid w-[85%] gap-1.5 rounded-t-2xl border border-b-0 border-border bg-surface-secondary p-3 pb-5 text-left">
+          <span className="text-sm text-text-tertiary">Review order</span>
           <span className="h-3 w-2/3 rounded-full bg-foreground/80" />
-          <span className="flex justify-between text-3xs text-text-tertiary">
+          <span className="flex justify-between text-sm text-text-tertiary tabular-nums">
             Reference close <span className="h-1.5 w-12 self-center rounded-full bg-border" />
           </span>
-          <span className="flex justify-between text-3xs text-text-tertiary">
+          <span className="flex justify-between text-sm text-text-tertiary tabular-nums">
             Fees <span>None</span>
           </span>
-          <span className="mt-1 rounded-full bg-primary py-1.5 text-center text-2xs font-medium text-primary-foreground">
+          <span className="mt-1 rounded-full bg-primary py-1.5 text-center text-sm font-medium text-primary-foreground">
             Place buy order
           </span>
         </div>
@@ -417,10 +417,6 @@ export function LandingFaq() {
           <h2 data-motion="words" className="text-4xl font-medium tracking-[-0.03em] sm:text-5xl">
             Paper trading, made plain.
           </h2>
-          <p className="flex items-center gap-2 text-text-secondary">
-            <Sparkles className="size-4 text-brand" aria-hidden />
-            What people ask before they open an account.
-          </p>
           <FaqCandle />
         </div>
         <div className="grid gap-2">
