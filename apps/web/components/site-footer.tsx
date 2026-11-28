@@ -61,15 +61,24 @@ const COLUMNS: { heading: string; links: { href: string; label: string; external
   ];
 
 /**
- * Numbered rather than run together as one grey paragraph. The engine really
- * does simulate fills against stored daily closes, and stating that as
- * discrete, readable notes treats the constraint as part of the product
- * instead of something to bury.
+ * The three things to know, each led by two or three words in large chrome
+ * type with the full sentence under it at body size (owner, 28 Nov 2026,
+ * mockup A). Nothing moves or hides: this is the legal text. The sentences
+ * are unchanged; the leads are new and go to the pre-release legal review.
  */
 const DISCLOSURES = [
-  "Simulated trading only. Orders fill against stored end-of-day closes — this is not a live brokerage and nothing is executed on an exchange.",
-  "Not investment advice. The Checklist counts six published conditions per symbol; it is not a recommendation to buy or sell any security.",
-  "Prices, fills, dividends, and alerts are modelled from end-of-day data and will differ from real market outcomes.",
+  {
+    lead: "Simulated.",
+    text: "Simulated trading only. Orders fill against stored end-of-day closes — this is not a live brokerage and nothing is executed on an exchange.",
+  },
+  {
+    lead: "Not advice.",
+    text: "Not investment advice. The Checklist counts six published conditions per symbol; it is not a recommendation to buy or sell any security.",
+  },
+  {
+    lead: "End-of-day.",
+    text: "Prices, fills, dividends, and alerts are modelled from end-of-day data and will differ from real market outcomes.",
+  },
 ];
 
 export function SiteFooter() {
@@ -126,16 +135,16 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <ol className="mt-14 grid gap-x-10 gap-y-4 border-t border-border-muted pt-8 sm:grid-cols-3">
-          {DISCLOSURES.map((note, index) => (
-            <li key={note} className="flex gap-2.5">
-              <span aria-hidden className="text-sm text-brand tabular-nums">
-                {index + 1}
-              </span>
-              <p className="text-sm leading-6 text-text-secondary">{note}</p>
+        <ul className="mt-14 grid gap-x-12 gap-y-10 border-t border-border-muted pt-10 sm:grid-cols-3">
+          {DISCLOSURES.map((note) => (
+            <li key={note.lead} className="grid content-start gap-4">
+              <p className="text-prism text-4xl font-medium tracking-[-0.04em] sm:text-5xl">
+                {note.lead}
+              </p>
+              <p className="text-base leading-7 text-text-secondary">{note.text}</p>
             </li>
           ))}
-        </ol>
+        </ul>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border-muted pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-text-tertiary tabular-nums">
