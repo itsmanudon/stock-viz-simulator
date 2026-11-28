@@ -42,7 +42,7 @@ export function DocArticle({
             href={`/docs/${previous.slug}`}
             className="group rounded-xl border border-border-muted px-4 py-3 hover:border-border"
           >
-            <span className="flex items-center gap-1.5 text-2xs text-text-tertiary">
+            <span className="flex items-center gap-1.5 text-sm text-text-tertiary">
               <ArrowLeft className="size-3" aria-hidden /> Previous
             </span>
             <span className="mt-1 block text-sm font-medium">{previous.title}</span>
@@ -55,7 +55,7 @@ export function DocArticle({
             href={`/docs/${next.slug}`}
             className="group rounded-xl border border-border-muted px-4 py-3 text-right hover:border-border"
           >
-            <span className="flex items-center justify-end gap-1.5 text-2xs text-text-tertiary">
+            <span className="flex items-center justify-end gap-1.5 text-sm text-text-tertiary">
               Next <ArrowRight className="size-3" aria-hidden />
             </span>
             <span className="mt-1 block text-sm font-medium">{next.title}</span>

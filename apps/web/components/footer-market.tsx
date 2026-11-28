@@ -71,7 +71,7 @@ export async function FooterCloseLine() {
           style={{ top: `${(lastPointY(path, H) / H) * 100}%` }}
         />
       </div>
-      <figcaption className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 font-mono text-2xs text-text-tertiary">
+      <figcaption className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm text-text-tertiary tabular-nums">
         <span>
           Equal-Weight Average · {terrain.tickers.length} Tracked Symbols · {terrain.sessions}{" "}
           Sessions
@@ -99,7 +99,7 @@ export async function FooterStatus() {
   return (
     <Link
       href="/status"
-      className="footer-status group flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-2xs text-text-tertiary transition-colors hover:text-text-secondary"
+      className="footer-status group flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-text-tertiary tabular-nums transition-colors hover:text-text-secondary"
       data-testid="footer-status"
     >
       {symbols?.length ? <span>{symbols.length} Symbols Tracked</span> : null}

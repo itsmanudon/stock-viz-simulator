@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -65,18 +65,23 @@ describe("SiteFooter", () => {
 });
 
 describe("HomePage", () => {
-  it("links every workspace surface to the route it describes", () => {
+  it("visits every workspace surface as a stop and links it to its route", () => {
     render(<HomePage />);
 
-    for (const [name, href] of [
-      ["Markets", "/markets"],
-      ["Screener", "/screener"],
-      ["Checklist", "/checklist"],
-      ["Backtest", "/backtest"],
-      ["Paper trading", "/trade"],
-      ["Portfolio", "/portfolio"],
+    for (const [index, name, href] of [
+      [1, "Markets", "/markets"],
+      [2, "Screener", "/screener"],
+      [3, "Checklist", "/checklist"],
+      [4, "Backtest", "/backtest"],
+      [5, "Paper trading", "/trade"],
+      [6, "Portfolio", "/portfolio"],
     ] as const) {
-      expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+      fireEvent.click(screen.getByRole("button", { name: `Stop ${index}: ${name}` }));
+      expect(screen.getByText(`Stop ${index} of 6`)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: `Open ${name}` })).toHaveAttribute("href", href);
     }
+
+    fireEvent.click(screen.getByRole("button", { name: "Next stop" }));
+    expect(screen.getByText("Stop 1 of 6")).toBeInTheDocument();
   });
 });

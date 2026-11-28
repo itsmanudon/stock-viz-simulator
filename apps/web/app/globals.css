@@ -214,10 +214,11 @@
   --color-marketing-panel-border: var(--marketing-panel-border);
   --color-grid-line: var(--grid-line);
   --font-sans: var(--font-display), Inter, "Segoe UI Variable", ui-sans-serif, system-ui, sans-serif;
-  /* Geist Mono draws its own ₹ (U+20B9). The "Currency Mono" face that
-     borrowed one from Consolas or Menlo was for JetBrains Mono, which has
-     none; with Geist Mono it only made the rupee look older. */
-  --font-mono: var(--font-numeric), "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  /* One typeface everywhere (owner, 28 Nov 2026): `font-mono` is no longer
+     a monospace face but Geist, like the rest of the site, so figures,
+     labels and chips match the copy around them. Columns still line up
+     through tabular figures (below), and there is no slashed zero. */
+  --font-mono: var(--font-sans);
 
   /* Type ramp.
      `3xs`/`2xs` are the dense-UI steps below Tailwind's `xs` — table meta,
@@ -283,7 +284,7 @@
   }
 
   :where(.font-mono, .tabular-nums, [data-financial]) {
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -847,9 +848,8 @@ html[data-density="compact"] .workspace-main .density-workspace {
   }
 }
 
-/* A ticker symbol (Aurora type pass, 12 Nov 2026): Geist, the font of the
-   name beside it, not the mono used for figures. Prices and quantities stay
-   in Geist Mono so columns line up; a ticker is a name, so it reads as text.
+/* A ticker symbol (Aurora type pass, 12 Nov 2026): Geist with normal
+   (proportional) figures, since a ticker is a name, not a column value.
    Pair it with a weight (`font-semibold`) where it is set. */
 @utility ticker {
   font-family: var(--font-sans);
