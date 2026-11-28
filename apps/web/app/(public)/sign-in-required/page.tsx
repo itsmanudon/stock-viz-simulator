@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
+import { signupMode } from "@/lib/signup-gate";
+import { SIGNUP_CLOSED_MESSAGE } from "@/lib/signup-policy";
 
 import { BackButton } from "./back-button";
 
@@ -40,13 +42,17 @@ export default async function SignInRequiredPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          <p>
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-foreground underline">
-              Sign up
-            </Link>{" "}
-            — it&apos;s free and starts you with a $100,000 paper portfolio.
-          </p>
+          {signupMode() === "closed" ? (
+            <p>{SIGNUP_CLOSED_MESSAGE}</p>
+          ) : (
+            <p>
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="text-foreground underline">
+                Sign up
+              </Link>{" "}
+              — it&apos;s free and starts you with a $100,000 paper portfolio.
+            </p>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
           <Button asChild className="w-full">

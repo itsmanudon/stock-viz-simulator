@@ -343,6 +343,11 @@ DSN env var is empty, so `pnpm dev`/`pnpm build` work offline.
   status pills — use `DeltaPill` rather than re-rolling the chip.
   `--surface-elevated` is one step *above* `--card` (overlays: sidebar,
   popovers, sheets); `--card` is for content tiles sitting on the page.
+  Marketing buttons follow it too (28 Nov 2026): `ctaPair` in
+  `lib/signup-policy.ts` swaps any `/signup` button for `/markets` (or `/docs`
+  when the pair would repeat) unless the mode is `open`; the footer drops
+  "Create account", and the login and sign-in-required pages drop their
+  "Sign up" line while `closed`.
 - **Type** (owner, 28 Nov 2026: one typeface across the site): Geist for
   everything, including every ticker symbol (the `ticker` utility in
   globals.css, paired with `font-semibold`) and every figure. `font-mono`

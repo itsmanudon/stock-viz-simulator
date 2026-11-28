@@ -42,3 +42,33 @@ export function signupAllowed(args: {
 
 export const SIGNUP_CLOSED_MESSAGE =
   "StockViz is invite only for now, so new accounts cannot be created. Existing accounts can still sign in.";
+
+/**
+ * Marketing buttons while new accounts are not open to everyone (owner, 28 Nov
+ * 2026, before sharing the site for review): a link to `/signup` would land a
+ * visitor on the "invite only" message, so it becomes a public page instead.
+ * When both buttons of a pair would then point to the same page, the second
+ * goes to the docs.
+ */
+export type CtaLink = { href: string; label: string };
+
+export const CLOSED_CTA: CtaLink = { href: "/markets", label: "Explore markets" };
+export const CLOSED_CTA_ALT: CtaLink = { href: "/docs", label: "Read the docs" };
+
+function isSignupLink(link: CtaLink): boolean {
+  return link.href.split("?")[0] === "/signup";
+}
+
+export function ctaPair(
+  mode: SignupMode,
+  primary: CtaLink,
+  secondary: CtaLink,
+): [CtaLink, CtaLink] {
+  if (mode === "open") return [primary, secondary];
+  const first = isSignupLink(primary) ? CLOSED_CTA : primary;
+  let second = isSignupLink(secondary) ? CLOSED_CTA : secondary;
+  if (second.href === first.href) {
+    second = first.href === CLOSED_CTA_ALT.href ? CLOSED_CTA : CLOSED_CTA_ALT;
+  }
+  return [first, second];
+}

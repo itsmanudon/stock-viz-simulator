@@ -20,8 +20,16 @@ import { Reveal } from "@/components/marketing/reveal";
 import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
 import { Button } from "@/components/ui/button";
+import { signupMode } from "@/lib/signup-gate";
+import { ctaPair } from "@/lib/signup-policy";
 
 export async function ClosingCta() {
+  // The signup switch: while closed, the account button points at a public page.
+  const [primary, secondary] = ctaPair(
+    signupMode(),
+    { href: "/signup", label: "Create free account" },
+    { href: "/markets", label: "See the markets" },
+  );
   const breadth = await loadBreadth();
   return (
     <section className="relative isolate overflow-hidden border-y border-border-muted bg-surface-secondary">
@@ -50,14 +58,14 @@ export async function ClosingCta() {
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Magnetic>
               <Button asChild size="lg" className="prism-cta h-12 rounded-full px-7 text-base">
-                <Link href="/signup" className="gap-2">
-                  Create free account
+                <Link href={primary.href} className="gap-2">
+                  {primary.label}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
             </Magnetic>
             <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
-              <Link href="/markets">See the markets</Link>
+              <Link href={secondary.href}>{secondary.label}</Link>
             </Button>
           </div>
         </Reveal>
