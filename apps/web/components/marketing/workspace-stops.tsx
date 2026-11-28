@@ -166,7 +166,7 @@ export function WorkspaceStops() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div
           ref={stageRef}
-          className="relative aspect-[1000/520] min-h-72 overflow-hidden rounded-3xl border border-border-muted bg-[radial-gradient(120%_90%_at_50%_100%,var(--surface-secondary),var(--background))]"
+          className="relative h-72 min-w-0 overflow-hidden rounded-3xl sm:aspect-[1000/520] sm:h-auto sm:min-h-72 border border-border-muted bg-[radial-gradient(120%_90%_at_50%_100%,var(--surface-secondary),var(--background))]"
         >
           {/* The camera: the whole terrain eases toward the stop in view. */}
           <div
@@ -211,7 +211,7 @@ export function WorkspaceStops() {
                 >
                   <span
                     className={cn(
-                      "flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 backdrop-blur-md transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
+                      "flex items-center gap-2 rounded-full border p-1 backdrop-blur-md sm:pr-3 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
                       on
                         ? "border-brand/60 bg-brand/15"
                         : "border-border-muted bg-background/70 hover:border-border",
