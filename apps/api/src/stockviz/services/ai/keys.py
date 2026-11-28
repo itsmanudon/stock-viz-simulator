@@ -106,7 +106,7 @@ def save_key(
         if base_url:
             raise KeyError_("Claude keys use Anthropic's own endpoint; leave the base URL empty")
         if not name.startswith("claude-"):
-            raise KeyError_("name a Claude model, e.g. claude-opus-5-5")
+            raise KeyError_("name a Claude model, e.g. claude-haiku-5-5")
         url = None
     else:
         url = check_base_url(base_url or "", local_allowed=not settings.is_production)
