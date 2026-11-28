@@ -6,6 +6,7 @@ import rootPackage from "../../../package.json";
 import { StockVizWordmark } from "@/components/brand/stockviz-mark";
 import { FooterCloseLine, FooterStatus } from "@/components/footer-market";
 import { ChromeWordmark } from "@/components/prism/chrome-wordmark";
+import { signupMode } from "@/lib/signup-gate";
 import { titleCase } from "@/lib/title-case";
 
 /**
@@ -82,6 +83,12 @@ const DISCLOSURES = [
 ];
 
 export function SiteFooter() {
+  // The signup switch: while new accounts are not open, no "Create account" link.
+  const open = signupMode() === "open";
+  const columns = COLUMNS.map((column) => ({
+    ...column,
+    links: column.links.filter((link) => open || link.href !== "/signup"),
+  }));
   return (
     <footer className="site-footer panel-inset rounded-none border-x-0 border-b-0 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pb-0">
       <div className="mx-auto w-full max-w-7xl px-4 pt-10 sm:px-6">
@@ -102,7 +109,7 @@ export function SiteFooter() {
           </div>
 
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {COLUMNS.map((column) => (
+            {columns.map((column) => (
               <nav key={column.heading} aria-label={column.heading}>
                 <h2 className="text-sm font-medium text-foreground">{titleCase(column.heading)}</h2>
                 <ul className="mt-3 space-y-2">

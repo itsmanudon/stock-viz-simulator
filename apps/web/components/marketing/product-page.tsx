@@ -27,6 +27,8 @@ import { PhoneFrame } from "@/components/marketing/phone-frame";
 import { ProofSection } from "@/components/marketing/proofs/proof-section";
 import { ReplayPlayer } from "@/components/marketing/replay-player";
 import { Button } from "@/components/ui/button";
+import { signupMode } from "@/lib/signup-gate";
+import { ctaPair } from "@/lib/signup-policy";
 import { formatCloseDate } from "@/lib/stock-workspace";
 
 type LinkSpec = { href: string; label: string };
@@ -156,6 +158,8 @@ async function PhoneArt({ screen }: { screen: PhoneScreenKey }) {
 }
 
 export function ProductPage({ spec }: { spec: ProductPageSpec }) {
+  // The signup switch: while closed, a "/signup" button points at a public page.
+  const [primary, secondary] = ctaPair(signupMode(), spec.primary, spec.secondary);
   return (
     <>
       {/* Clip sideways only: the glow has to fade out under the transparent
@@ -178,13 +182,13 @@ export function ProductPage({ spec }: { spec: ProductPageSpec }) {
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="rounded-full px-6">
-                <Link href={spec.primary.href} className="gap-2">
-                  {spec.primary.label}
+                <Link href={primary.href} className="gap-2">
+                  {primary.label}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="glass rounded-full px-6">
-                <Link href={spec.secondary.href}>{spec.secondary.label}</Link>
+                <Link href={secondary.href}>{secondary.label}</Link>
               </Button>
             </div>
           </div>

@@ -24,6 +24,8 @@ import { LiquidChrome } from "@/components/prism/liquid-chrome";
 import { Magnetic } from "@/components/prism/magnetic";
 import { AmbientMood } from "@/components/sound/ambient-music";
 import { Button } from "@/components/ui/button";
+import { signupMode } from "@/lib/signup-gate";
+import { ctaPair } from "@/lib/signup-policy";
 
 /**
  * Floating facts over the panel's chart area, from `lg` up: the chart has no
@@ -49,6 +51,17 @@ const STAGE_PILLS: { icon: LucideIcon; label: string; className: string }[] = [
 
 export async function Hero() {
   const [screens, breadth] = await Promise.all([loadPhoneScreens(), loadBreadth()]);
+  // The signup switch: while closed, the account buttons point at public pages.
+  const [primary, secondary] = ctaPair(
+    signupMode(),
+    { href: "/signup", label: "Create free account" },
+    { href: "/markets", label: "Explore markets" },
+  );
+  const [introCta] = ctaPair(
+    signupMode(),
+    { href: "/signup", label: "Open a paper account" },
+    { href: "/docs", label: "Read the docs" },
+  );
 
   const lead = (
     <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-14 text-center sm:px-6 sm:pt-20 lg:pt-24">
@@ -73,8 +86,8 @@ export async function Hero() {
       <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
         <Magnetic>
           <Button asChild size="lg" className="prism-cta h-12 rounded-full px-7 text-base">
-            <Link href="/signup" className="gap-2">
-              Create free account
+            <Link href={primary.href} className="gap-2">
+              {primary.label}
               <ArrowRight className="size-4" aria-hidden />
             </Link>
           </Button>
@@ -86,7 +99,7 @@ export async function Hero() {
             variant="outline"
             className="glass h-12 rounded-full px-7 text-base"
           >
-            <Link href="/markets">Explore markets</Link>
+            <Link href={secondary.href}>{secondary.label}</Link>
           </Button>
         </Magnetic>
       </div>
@@ -119,7 +132,7 @@ export async function Hero() {
       </p>
       <div>
         <Button asChild size="lg" className="rounded-full px-6">
-          <Link href="/signup">Open a paper account</Link>
+          <Link href={introCta.href}>{introCta.label}</Link>
         </Button>
       </div>
     </div>

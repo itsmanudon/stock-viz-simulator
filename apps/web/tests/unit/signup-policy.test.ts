@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SIGN_IN_ERRORS, googleSignInRefusal } from "@/lib/oauth-linking";
-import { parseAllowlist, parseSignupMode, signupAllowed } from "@/lib/signup-policy";
+import { ctaPair, parseAllowlist, parseSignupMode, signupAllowed } from "@/lib/signup-policy";
 
 const allow = parseAllowlist(" Me@Example.com, friend@example.com ,, ");
 
@@ -53,5 +53,27 @@ describe("signup policy", () => {
   it("the login page has words for a closed Google sign-up", () => {
     expect(SIGN_IN_ERRORS.SignupClosed).toMatch(/invite only/);
     expect(googleSignInRefusal({ emailVerified: true, existing: null })).toBeNull();
+  });
+});
+
+describe("marketing buttons while signup is not open (28 Nov 2026)", () => {
+  const signup = { href: "/signup", label: "Create free account" };
+  const markets = { href: "/markets", label: "Explore markets" };
+  const replay = { href: "/replay", label: "Start a replay" };
+
+  it("keeps the buttons when signup is open", () => {
+    expect(ctaPair("open", signup, markets)).toEqual([signup, markets]);
+  });
+
+  it("swaps a /signup button for a public page, never two of the same", () => {
+    expect(ctaPair("closed", signup, markets)).toEqual([
+      markets,
+      { href: "/docs", label: "Read the docs" },
+    ]);
+    expect(ctaPair("allowlist", replay, { href: "/signup?x=1", label: "Join" })).toEqual([
+      replay,
+      markets,
+    ]);
+    expect(ctaPair("closed", replay, markets)).toEqual([replay, markets]);
   });
 });
