@@ -158,7 +158,9 @@ async function PhoneArt({ screen }: { screen: PhoneScreenKey }) {
 export function ProductPage({ spec }: { spec: ProductPageSpec }) {
   return (
     <>
-      <section className="relative isolate overflow-hidden">
+      {/* Clip sideways only: the glow has to fade out under the transparent
+          header, not stop in a straight line below it. */}
+      <section className="relative isolate overflow-x-clip">
         <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:pb-24">
           <div
             aria-hidden
